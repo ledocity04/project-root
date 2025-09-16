@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/auth";
 
-export default function LoginPage() {
+export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const { login, signup, loading, error } = useAuthStore();
 
   return (
-    <div className="min-h-screen grid place-items-center">
+    <div className="min-h-screen grid place-items-center bg-slate-900 text-slate-100">
       <div className="w-[360px] bg-slate-800 rounded-xl p-6 border border-slate-700">
         <h1 className="text-2xl font-bold mb-4">Flip Pairs Online</h1>
         <div className="space-y-3">
@@ -31,23 +31,23 @@ export default function LoginPage() {
             <button
               disabled={loading}
               onClick={() => login(username, password)}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 rounded px-3 py-2"
+              className="flex-1 px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
             >
               Đăng nhập
             </button>
             <button
               disabled={loading}
               onClick={() => signup(username, password)}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 rounded px-3 py-2"
+              className="flex-1 px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
             >
               Đăng ký
             </button>
           </div>
-
-          <div className="text-xs text-slate-400 mt-2">
-            Server mặc định: http://localhost:3001
-          </div>
         </div>
+
+        <p className="text-xs text-slate-400 mt-4">
+          Server mặc định: http://localhost:3001
+        </p>
       </div>
     </div>
   );

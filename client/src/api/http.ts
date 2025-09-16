@@ -1,26 +1,16 @@
 import axios from "axios";
-import { useAuthStore } from "../store/auth";
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3001",
+  baseURL: import.meta.env.VITE_API_BASE || "http://localhost:3001",
   withCredentials: false,
 });
 
+// (tuỳ chọn) tự động gắn Authorization nếu có token trong localStorage
 http.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+  const token = localStorage.getItem("token");
   if (token) {
     config.headers = config.headers || {};
     (config.headers as any).Authorization = `Bearer ${token}`;
   }
   return config;
 });
-
-http.interceptors.response.use(
-  (r) => r,
-  (err) => {
-    if (err?.response?.status === 401) {
-      useAuthStore.getState().logout();
-    }
-    return Promise.reject(err);
-  }
-);

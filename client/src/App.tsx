@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { useAuthStore } from "./store/auth";
 import Login from "./pages/Login";
+
+// (tuỳ) nếu có Lobby/Room thì import, còn chưa có thì tạm trả Login/“Hello”
 import Lobby from "./pages/Lobby";
 import Room from "./pages/Room";
-import { useEffect } from "react";
-import { connectSocket, socket } from "./sockets";
 
 export default function App() {
   const { token, user, restore } = useAuthStore();
@@ -12,21 +13,14 @@ export default function App() {
     restore();
   }, [restore]);
 
-  useEffect(() => {
-    if (token) {
-      connectSocket(token);
-      socket.emit("auth:token"); // inform server after connect
-    }
-  }, [token]);
-
+  // Chưa đăng nhập ⇒ render Login
   if (!token || !user) return <Login />;
 
-  // very simple "routing": if currentMatchId in match store -> Room, else Lobby
-  // We let Room page listen to match store to render.
+  // Rất đơn giản: nếu đã vào trận thì render Room, ngược lại Lobby
   return <RouterLike />;
 }
 
 function RouterLike() {
-  const { currentMatchId } = useAuthStore(); // reuse auth store for lightweight nav
+  const { currentMatchId } = useAuthStore();
   return currentMatchId ? <Room /> : <Lobby />;
 }

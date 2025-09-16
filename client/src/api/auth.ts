@@ -5,7 +5,7 @@ export type AuthResponse = {
   user: { id: string; username: string };
 };
 
-export async function signup(
+export async function apiSignup(
   username: string,
   password: string
 ): Promise<AuthResponse> {
@@ -16,7 +16,7 @@ export async function signup(
   return data;
 }
 
-export async function login(
+export async function apiLogin(
   username: string,
   password: string
 ): Promise<AuthResponse> {
