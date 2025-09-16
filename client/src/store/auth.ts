@@ -1,57 +1,50 @@
 import { create } from "zustand";
-import { http } from "../api/http";
+import { login as apiLogin, signup as apiSignup } from "../api/auth";
 
 type User = { id: string; username: string };
-
 type State = {
   token: string | null;
   user: User | null;
-  currentMatchId: string | null;
+  loading: boolean;
+  error: string | null;
 };
 type Actions = {
-  restore: () => void;
-  login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, password: string) => Promise<void>;
+  login: (u: string, p: string) => Promise<void>;
+  signup: (u: string, p: string) => Promise<void>;
   logout: () => void;
-  enterMatch: (matchId: string) => void;
-  leaveMatch: () => void;
 };
 
 export const useAuthStore = create<State & Actions>((set) => ({
   token: null,
   user: null,
-  currentMatchId: null,
-
-  restore: () => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-    if (token && user) set({ token, user: JSON.parse(user) });
-  },
+  loading: false,
+  error: null,
 
   login: async (username, password) => {
-    const res = await http.post("/api/auth/login", { username, password });
-    const { token, user } = res.data;
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
-    set({ token, user });
+    set({ loading: true, error: null });
+    try {
+      const { token, user } = await apiLogin(username, password);
+      set({ token, user, loading: false });
+    } catch (e: any) {
+      set({
+        error: e?.response?.data?.message || "Đăng nhập thất bại",
+        loading: false,
+      });
+    }
   },
 
   signup: async (username, password) => {
-    const res = await http.post("/api/auth/signup", { username, password });
-    const { token, user } = res.data;
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
-    set({ token, user });
+    set({ loading: true, error: null });
+    try {
+      const { token, user } = await apiSignup(username, password);
+      set({ token, user, loading: false });
+    } catch (e: any) {
+      set({
+        error: e?.response?.data?.message || "Đăng ký thất bại",
+        loading: false,
+      });
+    }
   },
 
-  logout: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    set({ token: null, user: null, currentMatchId: null });
-  },
-
-  enterMatch: (matchId) => set({ currentMatchId: matchId }),
-  leaveMatch: () => set({ currentMatchId: null }),
+  logout: () => set({ token: null, user: null }),
 }));
-
-export const me = () => useAuthStore.getState().user;
