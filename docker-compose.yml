@@ -1,0 +1,38 @@
+version: "3.9"
+services:
+  server:
+    build: ./server
+    container_name: flip-server
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./server/.env
+    depends_on:
+      - mysql
+
+  client:
+    build: ./client
+    container_name: flip-client
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./client/.env
+    depends_on:
+      - server
+
+  mysql:
+    image: mysql:8.0
+    container_name: flip-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: flip_pairs
+      MYSQL_USER: flipuser
+      MYSQL_PASSWORD: flippass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
