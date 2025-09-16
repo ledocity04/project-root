@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  username     String          @unique
+  password     String
+  rating       Int             @default(1000)
+  createdAt    DateTime        @default(now())
+
+  // relations
+  refreshTokens RefreshToken[]
+  matchesP1     Match[]        @relation("Match_p1")
+  matchesP2     Match[]        @relation("Match_p2")
+  matchPlayers  MatchPlayer[]
+
+  @@index([username])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+model Match {
+  id         String   @id @default(cuid())
+  // two participants
+  p1Id       String
+  p1         User     @relation("Match_p1", fields: [p1Id], references: [id])
+  p2Id       String
+  p2         User     @relation("Match_p2", fields: [p2Id], references: [id])
+
+  // use String instead of enum for portability on SQLite
+  status     String   @default("PENDING")  // PENDING | ACTIVE | FINISHED | ABORTED
+  result     String?                      // WIN | LOSE | DRAW | ABORT (viewpoint-specific)
+  winnerId   String?
+
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+
+  // relations
+  players    MatchPlayer[]
+  turns      Turn[]
+
+  @@index([p1Id])
+  @@index([p2Id])
+  @@index([status])
+}
+
+model MatchPlayer {
+  id        String  @id @default(cuid())
+  matchId   String
+  match     Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  seat      Int     // 1 or 2
+  score     Int     @default(0)
+
+  // relations
+  turns     Turn[]
+  moves     Move[]
+
+  @@unique([matchId, userId])
+  @@index([userId])
+}
+
+model Turn {
+  id        String      @id @default(cuid())
+  matchId   String
+  match     Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  playerId  String      // MatchPlayer.id
+  player    MatchPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // use String instead of enum
+  result    String      @default("SUCCESS") // SUCCESS | FAIL | TIMEOUT
+  startedAt DateTime    @default(now())
+  endedAt   DateTime?
+
+  // relations
+  moves     Move[]
+  
+  @@index([matchId])
+  @@index([playerId])
+}
+
+model Move {
+  id        String      @id @default(cuid())
+  matchId   String
+  match     Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  turnId    String?
+  turn      Turn?       @relation(fields: [turnId], references: [id], onDelete: SetNull)
+
+  playerId  String
+  player    MatchPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  cardIndex Int
+  timestamp DateTime    @default(now())
+
+  @@index([matchId])
+  @@index([turnId])
+  @@index([playerId])
+}

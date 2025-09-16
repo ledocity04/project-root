@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  username          String   @unique
+  passwordHash      String
+  totalPoints       Int      @default(0)
+  totalWins         Int      @default(0)
+  totalCorrectPairs Int      @default(0)
+  matchesP1         Match[]  @relation("p1")
+  matchesP2         Match[]  @relation("p2")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Match {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+  p1Id       String
+  p2Id       String
+  winnerId   String?
+  boardSize  Int
+  p1Score    Int       @default(0)
+  p2Score    Int       @default(0)
+
+  p1 User @relation("p1", fields: [p1Id], references: [id])
+  p2 User @relation("p2", fields: [p2Id], references: [id])
+
+  events MatchEvent[]
+
+  @@index([boardSize])
+}
+
+model MatchEvent {
+  id      String   @id @default(cuid())
+  matchId String
+  type    String
+  payload String // JSON
+  ts      DateTime @default(now())
+  match   Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, ts])
+}
