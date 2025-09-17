@@ -41,6 +41,7 @@ export async function ensureSocketConnected(): Promise<Socket> {
   });
 }
 
+/* ----------------- Presence ----------------- */
 export function presenceList() {
   const s = getSocket();
   if (!s?.connected) {
@@ -49,6 +50,8 @@ export function presenceList() {
   }
   s.emit("presence:list");
 }
+
+/* ----------------- Invite ----------------- */
 export function sendInvite(toUserId: string) {
   const s = getSocket();
   if (!s?.connected) {
@@ -56,4 +59,61 @@ export function sendInvite(toUserId: string) {
     return;
   }
   s.emit("invite:send", { toUserId });
+}
+
+export function cancelInvite(inviteId: string) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("invite:cancel", { inviteId });
+}
+
+export function respondInvite(inviteId: string, decision: "accept" | "reject") {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("invite:respond", { inviteId, decision });
+}
+
+/* ----------------- Match ----------------- */
+export function joinMatch(matchId: string) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("match:join", { matchId });
+}
+
+export function flipCard(matchId: string, cardIndex: number) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("match:flip", { matchId, cardIndex });
+}
+
+export function sendPair(matchId: string) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("match:sendPair", { matchId });
+}
+/* ----------------- Match Exit ----------------- */
+export function exitMatch(matchId: string) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("match:exit", { matchId });
+}
+
+/* ----------------- Match Replay Vote ----------------- */
+export function replayVote(matchId: string, accept: boolean) {
+  const s = getSocket();
+  if (!s?.connected) return;
+  s.emit("match:replayVote", { matchId, accept });
+}
+/* ----------------- Chat ----------------- */
+export function sendChat(matchId: string, content: string) {
+  const s = getSocket();
+  if (!s?.connected) return;
+
+  const text = (content ?? "").trim();
+  if (!text) return;
+
+  // CHỌN TÊN SỰ KIỆN PHÙ HỢP VỚI SERVER CỦA BẠN:
+  // nếu server dùng "chat:send" thì giữ như dưới,
+  // nếu server dùng "match:chat" thì đổi tên event tương ứng.
+  s.emit("chat:send", { matchId, content: text });
 }

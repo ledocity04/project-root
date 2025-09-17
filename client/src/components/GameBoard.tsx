@@ -1,6 +1,6 @@
 import { useMatchStore } from "../store/match";
 import { useAuthStore } from "../store/auth";
-import { flipCard } from "../sockets";
+import { flipCard, sendPair, joinMatch } from "../sockets";
 
 type Props = {};
 export default function GameBoard(_props: Props) {
