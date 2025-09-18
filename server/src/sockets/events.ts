@@ -14,7 +14,6 @@ import {
   handleSendPair,
   joinRoomSocket,
   playerExitMatch,
-  rooms,
 } from "../services/roomService.js";
 import { prisma } from "../db/prisma.js";
 
@@ -39,11 +38,11 @@ function broadcastPresence(io: Server) {
 }
 
 export function registerSocketEvents(io: Server) {
-  io.on("connection", async (socket: Socket) => {
+  io.on("connection", (socket: Socket) => {
     let userId: string | null = null;
     let username: string | null = null;
 
-    // 1) Auth handshake
+    /* ------------ AUTH ------------ */
     socket.on("auth:token", async () => {
       const uid = requireAuth(socket);
       if (!uid) {
@@ -64,17 +63,17 @@ export function registerSocketEvents(io: Server) {
       broadcastPresence(io);
     });
 
-    // 2) Presence list
+    /* ------------ PRESENCE ------------ */
     socket.on("presence:list", () => {
       broadcastPresence(io);
     });
 
-    // 3) Invite send/cancel/respond
+    /* ------------ INVITE ------------ */
     const InviteSchema = z.object({
       toUserId: z.string().min(1),
-      rows: z.number().int().min(2).max(10),
-      cols: z.number().int().min(2).max(10),
-      turnSeconds: z.number().int().min(5).max(120),
+      rows: z.number().int().min(2).max(10).default(4),
+      cols: z.number().int().min(2).max(10).default(4),
+      turnSeconds: z.number().int().min(5).max(120).default(20),
     });
 
     socket.on("invite:send", async (payload) => {
@@ -85,6 +84,7 @@ export function registerSocketEvents(io: Server) {
           code: "BAD_INVITE",
           message: "Invalid invite",
         });
+
       const inv = createInvite(
         userId,
         p.data.toUserId,
@@ -92,7 +92,7 @@ export function registerSocketEvents(io: Server) {
         p.data.cols,
         p.data.turnSeconds
       );
-      // notify recipient
+
       for (const entry of presence.values()) {
         if (entry.userId === p.data.toUserId) {
           io.to(entry.socketId).emit("invite:received", {
@@ -111,7 +111,6 @@ export function registerSocketEvents(io: Server) {
       const inv = getInvite(inviteId);
       if (!inv || inv.fromUserId !== userId) return;
       cancelInvite(inviteId);
-      // notify target if online
       for (const entry of presence.values()) {
         if (entry.userId === inv.toUserId) {
           io.to(entry.socketId).emit("invite:canceled", { inviteId });
@@ -136,7 +135,6 @@ export function registerSocketEvents(io: Server) {
         });
 
       if (response === "accept") {
-        // create match
         const room = await createRoom(
           inv.fromUserId,
           inv.toUserId,
@@ -144,13 +142,8 @@ export function registerSocketEvents(io: Server) {
           inv.cols,
           inv.turnSeconds
         );
-
-        // notify both
         for (const entry of presence.values()) {
-          if (
-            entry.userId === inv.fromUserId ||
-            entry.userId === inv.toUserId
-          ) {
+          if ([inv.fromUserId, inv.toUserId].includes(entry.userId)) {
             entry.status = "busy";
             io.to(entry.socketId).emit("invite:result", {
               inviteId,
@@ -159,9 +152,7 @@ export function registerSocketEvents(io: Server) {
             });
           }
         }
-        // initial state broadcast done in room join
       } else {
-        // rejected
         for (const entry of presence.values()) {
           if (entry.userId === inv.fromUserId) {
             io.to(entry.socketId).emit("invite:result", {
@@ -175,7 +166,7 @@ export function registerSocketEvents(io: Server) {
       broadcastPresence(io);
     });
 
-    // 4) Match namespace behaviors (same main connection, just rooms)
+    /* ------------ MATCH ------------ */
     socket.on("match:join", async ({ matchId }) => {
       if (!userId) return;
       const m = await prisma.match.findUnique({ where: { id: matchId } });
@@ -184,16 +175,17 @@ export function registerSocketEvents(io: Server) {
           code: "MATCH_NOT_FOUND",
           message: "Match not found",
         });
-      if (m.p1Id !== userId && m.p2Id !== userId)
+      if (![m.p1Id, m.p2Id].includes(userId))
         return socket.emit("error", {
           code: "NOT_IN_MATCH",
           message: "Not a participant",
         });
 
       joinRoomSocket(matchId, socket.id);
+      socket.join(`room:${matchId}`);
+
       const state = getState(matchId);
       if (!state) {
-        // stale room (finished earlier)
         return socket.emit("match:state", { matchId, status: "FINISHED" });
       }
       socket.emit("match:state", {
@@ -213,39 +205,43 @@ export function registerSocketEvents(io: Server) {
       });
     });
 
-    socket.on("match:flip", async ({ matchId, cardIndex }) => {
+    socket.on("match:flip", ({ matchId, cardIndex }) => {
       if (!userId) return;
       const r = handleFlip(matchId, userId, Number(cardIndex));
-      if (!r.ok) return socket.emit("error", { code: r.code, message: r.code });
+      if (!r.ok) socket.emit("error", { code: r.code, message: r.code });
     });
 
     socket.on("match:sendPair", async ({ matchId }) => {
       if (!userId) return;
       const r = await handleSendPair(matchId, userId);
-      if (!r.ok) return socket.emit("error", { code: r.code, message: r.code });
+      if (!r.ok) socket.emit("error", { code: r.code, message: r.code });
     });
 
     socket.on("match:exit", async ({ matchId }) => {
       if (!userId) return;
       await playerExitMatch(matchId, userId);
-      // back to idle
       const pres = presence.get(socket.id);
       if (pres) pres.status = "idle";
       broadcastPresence(io);
     });
 
-    // chat
-    socket.on("chat:send", ({ matchId, text }) => {
+    /* ------------ CHAT ------------ */
+    socket.on("chat:send", ({ matchId, content }) => {
       if (!userId) return;
-      io.to(`room:${matchId}`).emit("chat:message", {
+      const text = (content ?? "").toString().trim();
+      if (!text) return;
+      io.to(`room:${matchId}`).emit("chat:new", {
+        matchId,
         userId,
-        text: String(text || "").slice(0, 500),
+        username,
+        content: text,
+        at: Date.now(),
       });
     });
 
-    // replay vote (demo: nếu cả hai gửi "accept", tạo trận mới cùng cấu hình)
-    const votes = new Map<string, Set<string>>(); // matchId -> set(userId)
-    socket.on("match:replay:vote", async ({ matchId, accept }) => {
+    /* ------------ REPLAY ------------ */
+    const votes = new Map<string, Set<string>>();
+    socket.on("match:replayVote", async ({ matchId, accept }) => {
       if (!userId) return;
       if (!accept) {
         io.to(`room:${matchId}`).emit("match:replay:status", {
@@ -270,7 +266,6 @@ export function registerSocketEvents(io: Server) {
       if (!m) return;
       const both = [m.p1Id, m.p2Id];
       if (both.every((uid) => v!.has(uid))) {
-        // create new room with same board size (rows/cols from boardSize)
         const size = m.boardSize;
         const rows = size === 16 ? 4 : 6;
         const cols = size === 16 ? 4 : 6;
@@ -284,13 +279,10 @@ export function registerSocketEvents(io: Server) {
       }
     });
 
+    /* ------------ DISCONNECT ------------ */
     socket.on("disconnect", () => {
-      const p = presence.get(socket.id);
-      if (p) {
-        presence.delete(socket.id);
-        // if user had ongoing match, keep match; just show presence
-        broadcastPresence(io);
-      }
+      presence.delete(socket.id);
+      broadcastPresence(io);
     });
   });
 }

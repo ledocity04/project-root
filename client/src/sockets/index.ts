@@ -52,13 +52,18 @@ export function presenceList() {
 }
 
 /* ----------------- Invite ----------------- */
-export function sendInvite(toUserId: string) {
+export function sendInvite(
+  toUserId: string,
+  rows = 4,
+  cols = 4,
+  turnSeconds = 20
+) {
   const s = getSocket();
   if (!s?.connected) {
     console.warn("[socket] not connected yet; skip invite:send");
     return;
   }
-  s.emit("invite:send", { toUserId });
+  s.emit("invite:send", { toUserId, rows, cols, turnSeconds });
 }
 
 export function cancelInvite(inviteId: string) {
@@ -67,10 +72,10 @@ export function cancelInvite(inviteId: string) {
   s.emit("invite:cancel", { inviteId });
 }
 
-export function respondInvite(inviteId: string, decision: "accept" | "reject") {
+export function respondInvite(inviteId: string, response: "accept" | "reject") {
   const s = getSocket();
   if (!s?.connected) return;
-  s.emit("invite:respond", { inviteId, decision });
+  s.emit("invite:respond", { inviteId, response });
 }
 
 /* ----------------- Match ----------------- */
@@ -91,6 +96,7 @@ export function sendPair(matchId: string) {
   if (!s?.connected) return;
   s.emit("match:sendPair", { matchId });
 }
+
 /* ----------------- Match Exit ----------------- */
 export function exitMatch(matchId: string) {
   const s = getSocket();
@@ -104,6 +110,7 @@ export function replayVote(matchId: string, accept: boolean) {
   if (!s?.connected) return;
   s.emit("match:replayVote", { matchId, accept });
 }
+
 /* ----------------- Chat ----------------- */
 export function sendChat(matchId: string, content: string) {
   const s = getSocket();
